@@ -12,7 +12,11 @@ type DB = BetterSQLite3Database<typeof schema>;
 const g = globalThis as unknown as { __rootsDb?: DB };
 
 function open(): DB {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  } catch (e) {
+    throw new Error(`Kan ikke oprette datamappen ${DATA_DIR} (DATA_DIR). I Docker/Coolify skal den være /data.`, { cause: e });
+  }
   const sqlite = new Database(DB_FILE);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
