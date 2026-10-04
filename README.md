@@ -8,7 +8,7 @@ Private Danish web app for the family: dinner plan → shared shopping list, sor
 
 ```bash
 pnpm install
-node scripts/hash-password.mjs "din adgangskode" > .env.local
+node scripts/hash-password.mjs > .env.local   # asks for the password
 echo "DATA_DIR=./data" >> .env.local
 mkdir -p data/recipes && cp seed/recipes/*.md data/recipes/   # optional sample recipes
 pnpm dev
@@ -37,7 +37,20 @@ Recipes and `items.yaml` can be edited by hand; changes are picked up automatica
 - **Færdig med at handle** logs and clears ticked items, keeps the rest, and marks the planned days as shopped.
 - Every tick writes to IndexedDB first and goes to the server via an outbox; the other phone gets it over SSE. Conflicts: last write wins per item.
 
-## Deploy (Hetzner VPS)
+## Deploy with Coolify
+
+1. New resource → **Public repository** → `https://github.com/Heinevolder/roots`, branch `main`.
+2. Build pack: **Dockerfile** (not Docker Compose; Coolify provides HTTPS itself, Caddy is not needed). Port: **3000**.
+3. Domain: `https://roots.heinevolder.dk` (point an A record for `roots` at the Coolify server).
+4. **Persistent storage**: add a volume mounted at **`/data`** (recipes, photos, items.yaml, roots.db). Without it everything is lost on redeploy.
+5. Environment variables:
+   - `APP_PASSWORD_HASH` and `SESSION_SECRET`: run `node scripts/hash-password.mjs` locally (asks for the password hidden) and paste both lines.
+   - `ANTHROPIC_API_KEY`
+6. Deploy. The image has a built-in health check on `/login`.
+
+To move existing data in: copy `data/` into the `/data` volume once (e.g. `docker cp data/. <container>:/data/` on the server, then restart).
+
+## Deploy (Hetzner VPS, without Coolify)
 
 1. Create the smallest Hetzner Cloud server (Ubuntu), SSH keys only, firewall open on 22/80/443, install Docker.
 2. Point `roots.<domain>` at the server.

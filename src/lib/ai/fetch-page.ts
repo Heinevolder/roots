@@ -111,7 +111,8 @@ export async function fetchPage(raw: string): Promise<Page> {
 export async function downloadImage(raw: string): Promise<{ data: Buffer; type: string } | null> {
   try {
     const { res } = await safeFetch(raw, "image/*");
-    const type = (res.headers.get("content-type") ?? "").split(";")[0];
+    let type = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    if (type === "image/jpg" || type === "image/pjpeg") type = "image/jpeg"; // some CDNs (e.g. Arla) send image/jpg
     if (!res.ok || !/^image\/(jpeg|png|webp)$/.test(type)) return null;
     const data = await readLimited(res);
     return data.length ? { data, type } : null;
