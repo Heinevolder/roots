@@ -22,6 +22,7 @@ export function BottomNav() {
             <li key={href}>
               <Link
                 href={href}
+                prefetch // fetch the other tabs in the background so switching is instant
                 className={`flex flex-col items-center gap-0.5 py-2 text-xs ${active ? "text-accent" : "text-muted"}`}
               >
                 <Icon />
