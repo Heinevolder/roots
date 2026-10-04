@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #f5f2ea;
+  --surface: #fffdf8;
+  --ink: #1e2620;
+  --muted: #6a6f64;
+  --line: #e2dccd;
+  --accent: #2f5d3a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2ebdf;
+  --warm: #b4532a;
+  --warm-soft: #f6e4d9;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #131611;
+    --surface: #1b1f19;
+    --ink: #eceae2;
+    --muted: #9a9f92;
+    --line: #2d3329;
+    --accent: #8fc08a;
+    --accent-ink: #11200f;
+    --accent-soft: #233021;
+    --warm: #e08a5f;
+    --warm-soft: #3a261b;
+    color-scheme: dark;
   }
 }
 
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warm: var(--warm);
+  --color-warm-soft: var(--warm-soft);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  font-size: 93.75%; /* 15px base; everything in rem scales with it */
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+input,
+select,
+textarea {
+  font-size: 16px; /* no iOS zoom on focus */
+}
+
+@utility field {
+  @apply w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-ink outline-none placeholder:text-muted/70 focus:border-accent;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-medium transition active:scale-[0.98] disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-accent text-accent-ink;
+}
+@utility btn-ghost {
+  @apply btn border border-line bg-surface text-ink;
+}
+@utility card {
+  @apply rounded-2xl border border-line bg-surface;
+}
+@utility label {
+  @apply mb-1 block text-sm font-medium text-muted;
+}
+
+/* Long-press on list rows means "move", not "select text" (iOS). */
+.no-select,
+.no-select * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }

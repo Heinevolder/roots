@@ -1,0 +1,8 @@
+node_modules
+.next
+data
+.env*
+.git
+.claude
+*.md
+!seed/**/*.md

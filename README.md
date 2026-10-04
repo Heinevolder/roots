@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Roots
 
-## Getting Started
+Private Danish web app for the family: dinner plan → shared shopping list, sorted by Føtex/Bilka aisle, usable offline in the store. Plan: [Roots – app plan](https://claude.ai/code/artifact/8d9760e1-5019-497b-b932-7c0e6dd3350b).
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router, Tailwind 4) as the only process · recipes as Markdown files · everything else in one SQLite file (better-sqlite3 + Drizzle) · live ticks over Server-Sent Events · offline via service worker + IndexedDB (Dexie) outbox · one shared password (argon2 + iron-session cookie).
+
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+node scripts/hash-password.mjs "din adgangskode" > .env.local
+echo "DATA_DIR=./data" >> .env.local
+mkdir -p data/recipes && cp seed/recipes/*.md data/recipes/   # optional sample recipes
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`data/items.yaml` is created from `seed/items.yaml` on first start. SQLite migrations run automatically on startup. The service worker only registers in production builds (`pnpm build && pnpm start`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+After changing `src/lib/db/schema.ts`: `pnpm drizzle-kit generate`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Data
 
-## Learn More
+```
+data/
+  recipes/*.md   one file per recipe (YAML frontmatter + steps), slug = file name
+  images/        recipe photos
+  items.yaml     grocery catalogue + aisles in walking order (also editable under "Mere")
+  roots.db       SQLite: meal_plan, list_items, staples, purchase_log, cooked_log
+```
 
-To learn more about Next.js, take a look at the following resources:
+Recipes and `items.yaml` can be edited by hand; changes are picked up automatically.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## How the list works
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Planned, not-yet-shopped days from today on are summed per item + unit (aliases like "gule løg" → "løg"), scaled by servings. Changing the plan or a recipe regenerates the recipe lines only; manual lines and staples are never touched, and ticks and "har vi" survive.
+- **Har vi allerede?** hides recipe items you already have at home.
+- **Færdig med at handle** logs and clears ticked items, keeps the rest, and marks the planned days as shopped.
+- Every tick writes to IndexedDB first and goes to the server via an outbox; the other phone gets it over SSE. Conflicts: last write wins per item.
 
-## Deploy on Vercel
+## Deploy (Hetzner VPS)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Create the smallest Hetzner Cloud server (Ubuntu), SSH keys only, firewall open on 22/80/443, install Docker.
+2. Point `roots.<domain>` at the server.
+3. On the server:
+   ```bash
+   git clone <repo> roots && cd roots
+   cp .env.example .env    # fill APP_PASSWORD_HASH, SESSION_SECRET, DOMAIN
+   docker compose up -d --build
+   ```
+   Caddy fetches the HTTPS certificate automatically. `./data` is mounted into the app container, so rebuilds never touch data.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`APP_PASSWORD_HASH` from `scripts/hash-password.mjs` is base64-encoded, so there is no `$` escaping to worry about in `.env` or compose.
+
+**Backups (to set up):** Litestream from `data/roots.db` to Hetzner Object Storage (or a nightly `sqlite3 .backup`), `data/recipes` + `items.yaml` in git, `data/images` synced nightly. Test a restore once.
+
+## Status
+
+- [x] M1 Foundation: login, proxy auth guard, SQLite + migrations, Docker Compose + Caddy
+- [x] M2 Recipes & plan: Markdown recipes with image upload, 3-day plan with week view, servings
+- [x] M3 Shopping list: generation/merging, staples, aisle order, shopping mode, SSE live sync
+- [x] M4 Offline PWA: manifest, service worker, IndexedDB cache, outbox, reconnect sync
+- [x] M5a AI: Inspiration swipe deck (Claude web search → only real pages that load), import from link, import from photo
+- [ ] M5b: dinner suggestions from the library, forgotten-item nudges, leftovers
+
+## AI (Claude)
+
+Needs `ANTHROPIC_API_KEY` in `.env` (server) / `.env.local` (dev). Model: `claude-opus-5-5`, called only from route handlers.
+
+- **Inspiration** (`/inspiration`): Claude uses web search to find recipe pages on Danish sites; the server fetches every URL and drops anything that doesn't load or isn't a single recipe, so cards are always real pages. Swipe right = Claude reads that page and saves it as a Markdown recipe (photo downloaded). Swiped URLs are never suggested again.
+- **Import** (`/opskrifter/ny`): from a link (JSON-LD when the site has it, otherwise page text) or 1–4 photos (cookbook, handwritten). Produces a draft you review before saving.
+- Ingredients are normalised to names in `items.yaml`, so they merge on the shopping list.
+- Rough cost: a search is a few web searches plus one Opus call; an import is one call. Set a monthly spend limit in the Anthropic console.

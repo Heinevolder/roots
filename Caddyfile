@@ -1,0 +1,9 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Live list updates (Server-Sent Events) must not be buffered.
+	reverse_proxy /api/list/stream app:3000 {
+		flush_interval -1
+	}
+	reverse_proxy app:3000
+}

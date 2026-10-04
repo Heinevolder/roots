@@ -1,0 +1,205 @@
+# Varekatalog: kategorier i den rækkefølge du går gennem butikken.
+# Et punkt er enten et navn eller "navn: [alias, alias]".
+
+# Har I altid derhjemme: står i opskrifterne, men kommer aldrig på indkøbslisten.
+pantry: [salt, peber, olivenolie, rapsolie]
+
+categories:
+  - name: Frugt & grønt
+    items:
+      - løg: [gule løg, zittauerløg]
+      - rødløg: [røde løg]
+      - forårsløg
+      - skalotteløg
+      - hvidløg: [hvidløgsfed]
+      - ingefær: [frisk ingefær]
+      - chili: [rød chili, chilipeber]
+      - kartofler: [kartoffel, nye kartofler]
+      - søde kartofler: [sød kartoffel]
+      - gulerødder: [gulerod]
+      - pastinak
+      - persillerod
+      - knoldselleri: [selleri]
+      - bladselleri: [stangselleri]
+      - porrer: [porre]
+      - broccoli
+      - blomkål
+      - spidskål
+      - hvidkål
+      - rødkål
+      - squash: [courgette, zucchini]
+      - aubergine
+      - peberfrugt: [rød peberfrugt, gul peberfrugt, grøn peberfrugt, peberfrugter]
+      - agurk
+      - tomater: [tomat]
+      - cherrytomater: [snacktomater]
+      - avocado: [avocadoer]
+      - salat: [hjertesalat, iceberg, icebergsalat]
+      - spinat: [babyspinat, frisk spinat]
+      - rucola
+      - champignon: [champignoner, svampe]
+      - majs: [majskolber]
+      - ærter: [sukkerærter]
+      - bønner: [grønne bønner]
+      - persille: [frisk persille, bredbladet persille]
+      - koriander: [frisk koriander]
+      - basilikum: [frisk basilikum]
+      - dild: [frisk dild]
+      - purløg
+      - citron: [citroner]
+      - lime: [limefrugt]
+      - æbler: [æble]
+      - pærer: [pære]
+      - bananer: [banan]
+      - appelsiner: [appelsin]
+      - clementiner: [mandariner]
+      - vindruer: [druer]
+      - jordbær
+      - blåbær
+      - hindbær
+  - name: Brød
+    items:
+      - rugbrød
+      - toastbrød
+      - boller: [morgenboller]
+      - pitabrød: [pita]
+      - tortillas: [tortilla, wraps]
+      - burgerboller
+      - pølsebrød
+      - naanbrød: [naan]
+      - flutes: [flute, baguette]
+      - knækbrød
+  - name: Kød & fisk
+    items:
+      - hakket oksekød: [oksekød hakket, hakket okse]
+      - hakket svinekød: [svinekød hakket]
+      - hakket grise- og kalvekød: [hakket kalv og flæsk, grise- og kalvekød]
+      - kyllingebryst: [kyllingefilet, kyllingebrystfilet]
+      - kyllingeinderfilet: [inderfilet]
+      - kyllingelår: [kyllingeoverlår]
+      - hel kylling
+      - svinemørbrad: [mørbrad]
+      - flæskesteg
+      - koteletter
+      - bacon: [baconskiver, bacontern]
+      - skinke: [hamburgerryg]
+      - pølser: [hotdogpølser, wienerpølser]
+      - medisterpølse: [medister]
+      - oksefilet
+      - oksesteg
+      - laks: [laksefilet]
+      - torsk: [torskefilet]
+      - rejer
+      - fiskefrikadeller
+  - name: Pålæg
+    items:
+      - leverpostej
+      - rullepølse
+      - spegepølse: [salami]
+      - kyllingepålæg
+      - makrel i tomat: [makrel]
+  - name: Mejeri
+    items:
+      - mælk: [letmælk, minimælk, sødmælk]
+      - kærnemælk
+      - fløde: [piskefløde]
+      - madlavningsfløde: [madlavningsfløde 9%]
+      - creme fraiche: [crème fraîche, cremefraiche]
+      - yoghurt: [yoghurt naturel, græsk yoghurt]
+      - skyr
+      - smør
+      - smørbar: [lurpak]
+      - æg
+      - ost: [skiveost]
+      - revet ost: [revet mozzarella]
+      - parmesan: [parmesanost]
+      - mozzarella
+      - feta: [fetaost]
+      - flødeost: [philadelphia]
+      - hytteost
+  - name: Frost
+    items:
+      - frosne ærter
+      - frosne grøntsager: [wokgrøntsager, grøntsagsblanding]
+      - frossen spinat: [hakket spinat]
+      - pommes frites: [fritter]
+      - frosne bær: [frosne hindbær, frosne blåbær]
+      - is
+  - name: Kolonial
+    items:
+      - pasta: [makaroni, skruer]
+      - spaghetti
+      - penne
+      - fusilli
+      - tagliatelle
+      - lasagneplader
+      - ris: [basmatiris, jasminris]
+      - risottoris: [arborioris]
+      - nudler: [ægnudler]
+      - couscous
+      - bulgur
+      - havregryn
+      - mel: [hvedemel]
+      - sukker
+      - bagepulver
+      - gær
+      - hakkede tomater: [hakkede tomater på dåse, flåede tomater]
+      - tomatpuré: [tomatkoncentrat]
+      - passata
+      - kokosmælk
+      - kikærter
+      - kidneybønner
+      - linser: [røde linser]
+      - majs på dåse
+      - tun: [tun i vand]
+      - bouillon: [hønsebouillon, grøntsagsbouillon, oksebouillon, bouillonterning]
+      - olivenolie: [ekstra jomfru olivenolie, jomfruolivenolie]
+      - rapsolie: [olie, neutral olie, solsikkeolie, vegetabilsk olie, madolie]
+      - eddike: [hvidvinseddike, balsamico]
+      - sojasauce: [soja]
+      - fiskesauce
+      - sweet chili sauce: [sweet chili]
+      - ketchup
+      - sennep
+      - mayonnaise: [mayo]
+      - remoulade
+      - pesto
+      - karry: [karrypulver]
+      - paprika
+      - spidskommen
+      - kanel
+      - oregano
+      - timian
+      - laurbærblade
+      - salt: [groft salt, flagesalt, havsalt, fint salt]
+      - peber: [sort peber, hvid peber, friskkværnet peber]
+      - honning
+      - syltetøj: [marmelade]
+      - peanutbutter: [jordnøddesmør]
+      - nødder: [mandler, cashewnødder]
+      - rosiner
+      - tacokrydderi
+      - tacoskaller
+      - chips
+      - müsli: [mysli, granola]
+      - cornflakes
+  - name: Drikkevarer
+    items:
+      - juice: [appelsinjuice]
+      - saftevand: [saft]
+      - danskvand: [mineralvand]
+      - kaffe
+      - te
+  - name: Husholdning
+    items:
+      - toiletpapir
+      - køkkenrulle
+      - opvasketabs
+      - opvaskemiddel
+      - vaskemiddel
+      - affaldsposer
+      - bagepapir
+      - alufolie
+      - fryseposer
+      - tandpasta
+      - shampoo

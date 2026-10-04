@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "roots-dev", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev"], "port": 3000 },
+    { "name": "roots-prod", "runtimeExecutable": "pnpm", "runtimeArgs": ["start"], "port": 3000 }
+  ]
+}
