@@ -1,5 +1,6 @@
 import "server-only";
 import fs from "node:fs";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import matter from "gray-matter";
 import { RECIPES_DIR } from "./paths";
@@ -13,6 +14,7 @@ export type Recipe = {
   tags: string[];
   source?: string;
   image?: string;
+  share?: string; // token for the public /del/<token> link; unset = not shared
   ingredients: Ingredient[];
   body: string; // markdown steps
 };
@@ -34,6 +36,7 @@ function parseFile(file: string): Recipe | null {
       tags: Array.isArray(data.tags) ? data.tags.map(String) : [],
       source: data.source ? String(data.source) : undefined,
       image: data.image ? String(data.image) : undefined,
+      share: data.share ? String(data.share) : undefined,
       ingredients: (Array.isArray(data.ingredients) ? data.ingredients : [])
         .filter((i: unknown) => i && typeof i === "object" && "item" in i)
         .map((i: Ingredient) => ({
@@ -83,6 +86,21 @@ export function getRecipe(slug: string): Recipe | undefined {
   return cache().get(slug);
 }
 
+export function getSharedRecipe(token: string): Recipe | undefined {
+  if (!token) return undefined;
+  for (const r of cache().values()) if (r.share === token) return r;
+  return undefined;
+}
+
+/** Turn the public link on (new token) or off. Returns the token, or null when off. */
+export function setRecipeShare(slug: string, on: boolean): string | null {
+  const r = getRecipe(slug);
+  if (!r) throw new Error("Opskriften findes ikke");
+  const share = on ? (r.share ?? randomBytes(16).toString("base64url")) : undefined;
+  if (share !== r.share) saveRecipe({ ...r, share });
+  return share ?? null;
+}
+
 export function slugify(title: string): string {
   return (
     title
@@ -112,6 +130,7 @@ export function saveRecipe(r: Recipe) {
   if (r.tags.length) fm.tags = r.tags;
   if (r.source) fm.source = r.source;
   if (r.image) fm.image = r.image;
+  if (r.share) fm.share = r.share;
   fm.ingredients = r.ingredients.map((i) => {
     const o: Record<string, unknown> = { item: i.item };
     if (i.amount != null) o.amount = i.amount;

@@ -5,7 +5,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { deleteRecipe, getRecipe, saveRecipe, uniqueSlug, type Recipe } from "@/lib/recipes";
+import { deleteRecipe, getRecipe, saveRecipe, setRecipeShare, uniqueSlug, type Recipe } from "@/lib/recipes";
 import { parseIngredientLine } from "@/lib/ingredients";
 import { addRecipeToList, regenerateList } from "@/lib/list";
 import { IMAGES_DIR } from "@/lib/paths";
@@ -59,6 +59,7 @@ export async function saveRecipeAction(_: FormState, form: FormData): Promise<Fo
       .filter(Boolean),
     source: String(form.get("source") ?? "").trim() || undefined,
     image,
+    share: existing?.share,
     ingredients,
     body: String(form.get("steps") ?? ""),
   };
@@ -77,4 +78,10 @@ export async function deleteRecipeAction(slug: string) {
 
 export async function addRecipeToListAction(slug: string, servings: number): Promise<number> {
   return addRecipeToList(slug, Math.min(20, Math.max(1, Math.round(servings) || 4)));
+}
+
+export async function setShareAction(slug: string, on: boolean): Promise<string | null> {
+  const token = setRecipeShare(slug, on);
+  revalidatePath(`/opskrifter/${slug}`);
+  return token;
 }

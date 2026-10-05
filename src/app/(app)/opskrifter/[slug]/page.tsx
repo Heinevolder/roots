@@ -6,6 +6,8 @@ import { getCatalogueIndex } from "@/lib/catalogue";
 import { isPantry } from "@/lib/catalogue-core";
 import { DeleteRecipeButton } from "./delete-button";
 import { RecipeIngredients } from "./add-to-list";
+import { ShareButton } from "./share-button";
+import { Steps } from "@/components/recipe-steps";
 
 export async function generateMetadata({ params }: PageProps<"/opskrifter/[slug]">) {
   const r = getRecipe((await params).slug);
@@ -49,33 +51,12 @@ export default async function RecipePage({ params }: PageProps<"/opskrifter/[slu
         </>
       )}
 
-      <div className="mt-8 flex gap-2">
+      <ShareButton slug={r.slug} title={r.title} initialToken={r.share ?? null} />
+
+      <div className="mt-3 flex gap-2">
         <Link href={`/opskrifter/${r.slug}/rediger`} className="btn-ghost flex-1">Ret</Link>
         <DeleteRecipeButton slug={r.slug} />
       </div>
     </article>
-  );
-}
-
-function Steps({ body }: { body: string }) {
-  const lines = body.split("\n").map((l) => l.trim()).filter(Boolean);
-  return (
-    <ol className="space-y-3">
-      {lines.map((l, i) => {
-        const m = l.match(/^(\d+)[.)]\s*(.*)$/);
-        return (
-          <li key={i} className="flex gap-3">
-            {m ? (
-              <>
-                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">{m[1]}</span>
-                <p className="pt-0.5 leading-relaxed">{m[2]}</p>
-              </>
-            ) : (
-              <p className="leading-relaxed">{l.replace(/^[-*]\s*/, "")}</p>
-            )}
-          </li>
-        );
-      })}
-    </ol>
   );
 }
