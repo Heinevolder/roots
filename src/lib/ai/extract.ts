@@ -96,8 +96,15 @@ async function run(content: Anthropic.Beta.BetaContentBlockParam[]): Promise<Out
   const text = res.content.find((b) => b.type === "text");
   if (!text || text.type !== "text") throw new AiError("Claude svarede ikke med en opskrift.");
   const out = JSON.parse(text.text) as Out;
-  if (!out.is_recipe || !out.ingredients.length) throw new AiError("Der blev ikke fundet en opskrift.");
+  if (!out.is_recipe || !out.ingredients.length) throw new NoRecipeError();
   return out;
+}
+
+/** The input was read fine but held no recipe. */
+export class NoRecipeError extends AiError {
+  constructor(message = "Der blev ikke fundet en opskrift.") {
+    super(message);
+  }
 }
 
 export function toDraft(out: Out, extra: Partial<Draft>): Draft {
@@ -142,4 +149,57 @@ export async function extractFromPhotos(photos: Photo[]): Promise<Draft> {
     { type: "text", text: "Læs opskriften på billedet/billederne (det kan være en kogebogsside, et opslag over to sider, eller en håndskrevet seddel)." },
   ]);
   return toDraft(out, {});
+}
+
+const FETCH_TOOLS: Anthropic.Beta.BetaToolUnion[] = [
+  { type: "web_fetch_20260209", name: "web_fetch", max_uses: 3 },
+  {
+    name: "recipe",
+    description: "Opskriften fra siden.",
+    strict: true,
+    input_schema: RECIPE_SCHEMA as unknown as Anthropic.Beta.BetaTool.InputSchema,
+  },
+  {
+    name: "no_recipe",
+    description: "Brug når siden ikke indeholder en opskrift eller ikke kunne hentes.",
+    strict: true,
+    input_schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["reason"],
+      properties: { reason: { type: "string", description: "Kort forklaring på dansk til brugeren" } },
+    },
+  },
+];
+
+/**
+ * Fallback when our own reader finds no recipe (e.g. Wix and other script-heavy sites, or bot walls):
+ * let Claude fetch the page with its own web_fetch tool.
+ */
+export async function extractViaWebFetch(url: string, imageUrl?: string): Promise<Draft> {
+  const messages: Anthropic.Beta.BetaMessageParam[] = [
+    { role: "user", content: `Hent ${url} med web_fetch og kald recipe med opskriften fra siden. Er der ingen opskrift, så kald no_recipe.` },
+  ];
+  for (let turn = 0; turn < 4; turn++) {
+    const res = await claude().beta.messages.create({
+      model: MODEL,
+      max_tokens: 16000,
+      ...FALLBACK,
+      output_config: { effort: "low" },
+      system: [{ type: "text", text: systemPrompt(), cache_control: { type: "ephemeral" } }],
+      tools: FETCH_TOOLS,
+      messages,
+    });
+    if (res.stop_reason === "refusal") throw new AiError("Claude ville ikke behandle denne opskrift.");
+    const call = res.content.find((b) => b.type === "tool_use");
+    if (call && call.type === "tool_use") {
+      if (call.name === "no_recipe") throw new NoRecipeError(String((call.input as { reason?: string }).reason || "Der blev ikke fundet en opskrift."));
+      const out = call.input as Out;
+      if (!out.is_recipe || !out.ingredients?.length) throw new NoRecipeError();
+      return toDraft(out, { source: url, imageUrl });
+    }
+    messages.push({ role: "assistant", content: res.content });
+    if (res.stop_reason !== "pause_turn") messages.push({ role: "user", content: "Afslut ved at kalde recipe eller no_recipe." });
+  }
+  throw new NoRecipeError();
 }
