@@ -37,7 +37,7 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wish: w }),
       });
-      const data = await res.json().catch(() => ({ error: "Uventet svar fra serveren." }));
+      const data = await res.json().catch(() => ({ error: `Uventet svar fra serveren (${res.status}).` }));
       if (!res.ok) throw new Error(data.error);
       setCards(data.cards);
     } catch (e) {

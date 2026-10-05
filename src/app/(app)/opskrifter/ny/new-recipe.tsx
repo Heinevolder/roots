@@ -74,7 +74,7 @@ function useImport() {
     setError(null);
     try {
       const res = await req();
-      const data = await res.json().catch(() => ({ error: "Uventet svar fra serveren." }));
+      const data = await res.json().catch(() => ({ error: `Uventet svar fra serveren (${res.status}).` }));
       if (!res.ok || !data.draft) throw new Error(data.error ?? "Noget gik galt.");
       onDraft(data.draft);
     } catch (e) {
