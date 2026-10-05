@@ -8,11 +8,17 @@ let pulling: Promise<void> | null = null;
 let pullAgain = false;
 
 /** Local-first write: IndexedDB now, server when we can. */
-export async function mutate(row: Row) {
-  const next = { ...row, updatedAt: Math.max(Date.now(), (row.updatedAt ?? 0) + 1) };
+export function mutate(row: Row) {
+  return mutateMany([row]);
+}
+
+/** Several local-first writes in one transaction. */
+export async function mutateMany(rows: Row[]) {
+  const now = Date.now();
+  const next = rows.map((row) => ({ ...row, updatedAt: Math.max(now, (row.updatedAt ?? 0) + 1) }));
   await ldb.transaction("rw", ldb.rows, ldb.outbox, async () => {
-    await ldb.rows.put(next);
-    await ldb.outbox.add({ id: next.id, row: next });
+    await ldb.rows.bulkPut(next);
+    await ldb.outbox.bulkAdd(next.map((row) => ({ id: row.id, row })));
   });
   void push();
 }

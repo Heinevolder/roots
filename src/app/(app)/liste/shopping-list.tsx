@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ldb, newId, type Row, type StapleRow } from "@/lib/client/store";
-import { finishShoppingRemote, mutate, startLiveSync } from "@/lib/client/sync";
+import { finishShoppingRemote, mutate, mutateMany, startLiveSync } from "@/lib/client/sync";
 import { canonical, categoryName, categoryOf, type CatalogueIndex } from "@/lib/catalogue-core";
 import { formatAmount, parseIngredientLine } from "@/lib/ingredients";
 import { rangeLabel } from "@/lib/dates";
@@ -90,6 +90,7 @@ export function ShoppingList() {
               <FinishButton count={inCart.length} offline={status === "offline"} />
             </section>
           )}
+          {visible.length > 0 && <EmptyButton rows={visible} />}
         </>
       )}
     </>
@@ -278,6 +279,21 @@ function FinishButton({ count, offline }: { count: number; offline: boolean }) {
       {offline && <p className="mt-2 text-center text-xs text-muted">Kræver forbindelse. Dine flueben er gemt.</p>}
       {error && <p className="mt-2 text-center text-sm text-warm">{error}</p>}
     </div>
+  );
+}
+
+/** Clear the whole list. Plan lines are marked "har vi" so regeneration doesn't bring them back. */
+function EmptyButton({ rows }: { rows: Row[] }) {
+  return (
+    <button
+      className="mt-6 w-full py-2 text-sm text-muted active:text-warm"
+      onClick={() => {
+        if (!confirm(`Tøm listen? Alle ${rows.length} varer fjernes.`)) return;
+        void mutateMany(rows.map((r) => (r.source === "recipe" ? { ...r, dismissed: true, checked: false, checkedAt: null } : { ...r, deleted: true })));
+      }}
+    >
+      Tøm listen
+    </button>
   );
 }
 
