@@ -77,3 +77,13 @@ export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/** Web Push: one row per browser that turned notifications on. `device` is the roots_device cookie. */
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  endpoint: text("endpoint").primaryKey(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  device: text("device").notNull(),
+  name: text("name"), // who uses this device, shown as "Anna har tilføjet …"
+  createdAt: integer("created_at").notNull(),
+});

@@ -9,6 +9,7 @@ import { deleteRecipe, getRecipe, saveRecipe, uniqueSlug, type Recipe } from "@/
 import { parseIngredientLine } from "@/lib/ingredients";
 import { addRecipeToList, regenerateList } from "@/lib/list";
 import { IMAGES_DIR } from "@/lib/paths";
+import { currentDevice } from "@/lib/push";
 import { existingImage } from "@/lib/ai/images";
 
 export type FormState = { error?: string } | undefined;
@@ -76,5 +77,5 @@ export async function deleteRecipeAction(slug: string) {
 }
 
 export async function addRecipeToListAction(slug: string, servings: number): Promise<number> {
-  return addRecipeToList(slug, Math.min(20, Math.max(1, Math.round(servings) || 4)));
+  return addRecipeToList(slug, Math.min(20, Math.max(1, Math.round(servings) || 4)), await currentDevice());
 }

@@ -4,6 +4,8 @@ import { getCatalogue } from "@/lib/catalogue";
 import { formatAmount } from "@/lib/ingredients";
 import { PageHeader } from "@/components/page-header";
 import { logout } from "@/app/login/actions";
+import { vapidPublicKey } from "@/lib/push";
+import { Notifications } from "./notifications";
 import { addCatalogueItem, addPantry, addStaple, moveCategory, removePantry, removeStaple } from "./actions";
 
 export const metadata = { title: "Mere · Roots" };
@@ -16,6 +18,8 @@ export default async function MorePage() {
   return (
     <>
       <PageHeader title="Mere" />
+
+      <Notifications publicKey={vapidPublicKey()} />
 
       <section className="mb-8">
         <h2 className="font-display text-xl font-semibold">Basisvarer</h2>

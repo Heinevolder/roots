@@ -69,3 +69,53 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// Push: "Anna har tilføjet …". Pushes merge into the one list notification instead of piling up.
+const LIST_TAG = "roots-list";
+
+function itemsText(items) {
+  if (items.length <= 4) return items.length > 1 ? `${items.slice(0, -1).join(", ")} og ${items.at(-1)}` : items[0];
+  return `${items.slice(0, 3).join(", ")} og ${items.length - 3} mere`;
+}
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {}
+  event.waitUntil(
+    (async () => {
+      if (data.kind !== "list") {
+        return self.registration.showNotification(data.title || "Roots", { body: data.body, icon: "/icon-192.png", data: { url: data.url || "/liste" } });
+      }
+      const old = (await self.registration.getNotifications({ tag: LIST_TAG }))[0];
+      const items = [...new Set([...(old?.data?.items ?? []), ...data.items])];
+      const from = [...new Set([...(old?.data?.from ?? []), data.from || ""])];
+      const title = from.length === 1 && from[0] ? `${from[0]} har tilføjet til listen` : "Nyt på indkøbslisten";
+      return self.registration.showNotification(title, {
+        body: itemsText(items),
+        tag: LIST_TAG,
+        renotify: true,
+        icon: "/icon-192.png",
+        data: { items, from, url: data.url || "/liste" },
+      });
+    })(),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || "/liste", location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const win = wins.find((w) => w.url.startsWith(location.origin));
+      if (win) {
+        await win.focus();
+        if (win.url !== url) await win.navigate(url).catch(() => {});
+      } else {
+        await self.clients.openWindow(url);
+      }
+    })(),
+  );
+});

@@ -35,6 +35,7 @@ Recipes and `items.yaml` can be edited by hand; changes are picked up automatica
 - Planned, not-yet-shopped days from today on are summed per item + unit (aliases like "gule løg" → "løg"), scaled by servings. Changing the plan or a recipe regenerates the recipe lines only; manual lines and staples are never touched, and ticks and "har vi" survive.
 - **Har vi allerede?** hides recipe items you already have at home.
 - **Færdig med at handle** logs and clears ticked items, keeps the rest, and marks the planned days as shopped.
+- **Notifications** (Mere → Notifikationer, per device): when someone adds to the list, the other devices get a Web Push. Additions from one device are pooled and sent 2 min after the last one (max 10 min), skipping anything ticked off in the meantime. VAPID keys are generated on first use and kept in the `settings` table, so there is nothing to configure. iPhone needs Roots on the Home Screen (iOS 16.4+). Plan regeneration does not notify; "Læg på indkøbslisten" from a recipe does.
 - Every tick writes to IndexedDB first and goes to the server via an outbox; the other phone gets it over SSE. Conflicts: last write wins per item.
 
 ## Deploy with Coolify

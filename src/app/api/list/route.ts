@@ -3,6 +3,7 @@ import { applyClientRows, listStaples, pullSince, type WireItem } from "@/lib/li
 import { getCatalogueIndex } from "@/lib/catalogue";
 import { listRecipes } from "@/lib/recipes";
 import { getPlanRange } from "@/lib/plan-range";
+import { currentDevice } from "@/lib/push";
 
 export async function GET(req: Request) {
   await connection();
@@ -24,6 +25,6 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { rows?: WireItem[] } | null;
   if (!body || !Array.isArray(body.rows)) return Response.json({ error: "Ugyldig forespørgsel" }, { status: 400 });
-  const applied = applyClientRows(body.rows.slice(0, 500));
+  const applied = applyClientRows(body.rows.slice(0, 500), await currentDevice());
   return Response.json({ applied });
 }

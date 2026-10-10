@@ -7,6 +7,7 @@ import { getCatalogueIndex } from "./catalogue";
 import { canonical, isPantry } from "./catalogue-core";
 import { niceAmount } from "./ingredients";
 import { notifyList } from "./events";
+import { queueAdded } from "./push";
 import { today } from "./dates";
 import { getPlanRange } from "./plan-range";
 import type { ListItem } from "./db/schema";
@@ -115,9 +116,10 @@ export function pullSince(since: number): { rows: ListItem[]; rev: number } {
   return { rows, rev: currentRev() };
 }
 
-/** Last-write-wins upsert of client rows. */
-export function applyClientRows(rows: WireItem[]): number {
+/** Last-write-wins upsert of client rows. `device` added them, for notifying the others. */
+export function applyClientRows(rows: WireItem[], device: string | null = null): number {
   let applied = 0;
+  const added: string[] = [];
   db.transaction((tx) => {
     const rev = nextRev();
     for (const r of rows) {
@@ -140,9 +142,14 @@ export function applyClientRows(rows: WireItem[]): number {
       } as const;
       tx.insert(listItems).values(values).onConflictDoUpdate({ target: listItems.id, set: values }).run();
       applied++;
+      // New line, a removed one back, or more of something already on the list.
+      const live = !values.deleted && !values.checked && !values.dismissed;
+      const wasLive = cur && !cur.deleted && !cur.checked && !cur.dismissed;
+      if (live && (!wasLive || (values.amount ?? 0) > (cur.amount ?? 0))) added.push(r.id);
     }
   });
   if (applied) notifyList(currentRev());
+  queueAdded(device, added);
   return applied;
 }
 
@@ -180,13 +187,13 @@ export function listStaples() {
  * "Læg på indkøbslisten" from a recipe page: add its ingredients as manual lines (outside the plan),
  * scaled to `servings`, merged into matching unticked manual lines. Pantry items are skipped.
  */
-export function addRecipeToList(slug: string, servings: number): number {
+export function addRecipeToList(slug: string, servings: number, device: string | null = null): number {
   const r = getRecipe(slug);
   if (!r) throw new Error("Opskriften findes ikke");
   const idx = getCatalogueIndex();
   const factor = servings / (r.servings || 4);
   const now = Date.now();
-  let added = 0;
+  const ids: string[] = [];
   db.transaction((tx) => {
     const rev = nextRev();
     const open = tx
@@ -205,14 +212,16 @@ export function addRecipeToList(slug: string, servings: number): number {
         const slugs = [...new Set([...(same.recipeSlugs?.split(",").filter(Boolean) ?? []), slug])].sort().join(",");
         const sum = same.amount != null && amount != null ? niceAmount(same.amount + amount, unit) : (same.amount ?? amount);
         tx.update(listItems).set({ amount: sum, recipeSlugs: slugs, updatedAt: now, rev }).where(eq(listItems.id, same.id)).run();
+        ids.push(same.id);
       } else {
         const row = { id: randomUUID(), item, unit, amount, source: "manual" as const, recipeSlugs: slug, updatedAt: now, rev };
         tx.insert(listItems).values(row).run();
         open.push({ ...row, checked: false, checkedAt: null, dismissed: false, deleted: false });
+        ids.push(row.id);
       }
-      added++;
     }
   });
-  if (added) notifyList(currentRev());
-  return added;
+  if (ids.length) notifyList(currentRev());
+  queueAdded(device, ids);
+  return ids.length;
 }
