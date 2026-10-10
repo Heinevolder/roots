@@ -3,14 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ldb, newId, type Row, type StapleRow } from "@/lib/client/store";
-import { finishShoppingRemote, mutate, mutateMany, startLiveSync } from "@/lib/client/sync";
+import { finishShoppingRemote, mutate, mutateMany, startLiveSync, type Status } from "@/lib/client/sync";
 import { canonical, categoryName, categoryOf, type CatalogueIndex } from "@/lib/catalogue-core";
 import { formatAmount, parseIngredientLine } from "@/lib/ingredients";
 import { rangeLabel } from "@/lib/dates";
 import { placeItem } from "../mere/actions";
 import { pull } from "@/lib/client/sync";
 
-type Status = "live" | "offline" | "connecting";
 type Tab = "handl" | "hjemme";
 
 export function ShoppingList() {
@@ -49,6 +48,7 @@ export function ShoppingList() {
         </div>
         <StatusPill status={status} pending={pending} />
       </header>
+      <ConnectionNote status={status} pending={pending} />
 
       <div className="mb-4 flex rounded-xl border border-line bg-surface p-0.5 text-sm">
         <TabButton active={tab === "handl"} onClick={() => setTab("handl")}>Handl</TabButton>
@@ -87,7 +87,7 @@ export function ShoppingList() {
                   <ItemRow key={r.id} row={r} titles={titles ?? {}} />
                 ))}
               </ul>
-              <FinishButton count={inCart.length} offline={status === "offline"} />
+              <FinishButton count={inCart.length} offline={status === "offline" || status === "weak"} />
             </section>
           )}
           {visible.length > 0 && <EmptyButton rows={visible} />}
@@ -306,14 +306,27 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 function StatusPill({ status, pending }: { status: Status; pending: number }) {
-  const label = status === "live" ? (pending ? "Synker…" : "Live") : status === "offline" ? "Offline" : "Forbinder…";
-  const dot = status === "live" ? "bg-accent" : status === "offline" ? "bg-warm" : "bg-muted";
+  const label = { live: pending ? "Gemmer…" : "Live", connecting: "Forbinder…", weak: "Svag forbindelse", offline: "Offline" }[status];
+  const dot = { live: "bg-accent", connecting: "bg-muted animate-pulse", weak: "bg-warm animate-pulse", offline: "bg-warm" }[status];
   return (
-    <span className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-muted">
+    <span role="status" className="flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-muted">
       <span className={`size-2 rounded-full ${dot}`} />
       {label}
-      {status === "offline" && pending > 0 && ` · ${pending} i kø`}
     </span>
+  );
+}
+
+/** Say plainly that ticks still count when the network doesn't. */
+function ConnectionNote({ status, pending }: { status: Status; pending: number }) {
+  if (status !== "offline" && status !== "weak") return null;
+  const head = status === "offline" ? "Ingen forbindelse." : "Forbindelsen er svag.";
+  const tail = pending
+    ? `${pending} ${pending === 1 ? "ændring er" : "ændringer er"} gemt på telefonen og sendes, når nettet er tilbage.`
+    : "Du kan bare handle videre. Flueben gemmes på telefonen og sendes, når nettet er tilbage.";
+  return (
+    <p className="mb-4 rounded-xl bg-warm-soft px-3 py-2 text-sm text-warm">
+      <b className="font-semibold">{head}</b> {tail}
+    </p>
   );
 }
 

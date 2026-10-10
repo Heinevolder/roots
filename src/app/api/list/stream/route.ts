@@ -19,7 +19,8 @@ export async function GET(req: Request) {
       const onMeta = () => send(`event: meta\ndata: 1\n\n`);
       events.on("list", onList);
       events.on("meta", onMeta);
-      const ping = setInterval(() => send(`: ping\n\n`), 25_000);
+      // A real event (not a comment) so the client can tell a live stream from a silently dead one.
+      const ping = setInterval(() => send(`event: ping\ndata: 1\n\n`), 15_000);
       cleanup = () => {
         clearInterval(ping);
         events.off("list", onList);

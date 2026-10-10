@@ -50,18 +50,22 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Pages: network first, fall back to the last copy, then to the list.
+  // Pages: network first, but don't wait long on a bad connection: after 3 s show the last copy
+  // (the list itself lives in IndexedDB) and let the network answer refresh the cache.
   if (req.mode === "navigate") {
+    const network = fetch(req).then((res) => {
+      if (res.ok && !res.redirected) {
+        const copy = res.clone();
+        caches.open(VERSION).then((c) => c.put(url.pathname, copy));
+      }
+      return res;
+    });
+    const cached = async () => (await caches.match(url.pathname)) || (await caches.match("/liste"));
+    const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(cached);
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          if (res.ok && !res.redirected) {
-            const copy = res.clone();
-            caches.open(VERSION).then((c) => c.put(url.pathname, copy));
-          }
-          return res;
-        })
-        .catch(async () => (await caches.match(url.pathname)) || (await caches.match("/liste")) || Response.error()),
+      Promise.race([network.catch(() => undefined), slow])
+        .then((res) => res || network)
+        .catch(async () => (await cached()) || Response.error()),
     );
   }
 });
