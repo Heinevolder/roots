@@ -39,10 +39,21 @@ function pickTrip(tripId: number | null) {
   );
 }
 
+/** Purchases from the last 3 days that belong to no trip (e.g. shopping finished before trips existed). */
+function loosePurchases() {
+  return db
+    .select()
+    .from(purchaseLog)
+    .where(and(isNull(purchaseLog.tripId), gte(purchaseLog.date, addDays(today(), -3))))
+    .all();
+}
+
 /** Read a receipt photo and store its lines on a trip (replacing any earlier receipt). Returns the trip id. */
 export async function addReceipt(photos: Photo[], tripId: number | null): Promise<number> {
   const trip = pickTrip(tripId);
-  const bought = trip ? boughtOn(trip.id) : [];
+  // No trip to join: a new one adopts recent purchases that have no trip, so they still count as "fra listen".
+  const loose = trip ? [] : loosePurchases();
+  const bought = trip ? boughtOn(trip.id) : loose.map((p) => p.item);
   const categories = receiptCategories();
   const catalogue = getCatalogue().categories.flatMap((c) => c.items.map((i) => i.name));
   const read = await readReceipt(photos, bought, categories, catalogue);
@@ -68,9 +79,10 @@ export async function addReceipt(photos: Photo[], tripId: number | null): Promis
       trip?.id ??
       tx
         .insert(trips)
-        .values({ date: read.date ?? today(), createdAt: Date.now() })
+        .values({ date: read.date ?? loose[0]?.date ?? today(), createdAt: Date.now() })
         .returning({ id: trips.id })
         .get().id;
+    if (loose.length) tx.update(purchaseLog).set({ tripId: id }).where(inArray(purchaseLog.id, loose.map((p) => p.id))).run();
     tx.update(trips).set({ total, store: read.store }).where(eq(trips.id, id)).run();
     tx.delete(receiptLines).where(eq(receiptLines.tripId, id)).run();
     for (const l of lines) tx.insert(receiptLines).values({ ...l, tripId: id }).run();
