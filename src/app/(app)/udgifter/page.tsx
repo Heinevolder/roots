@@ -97,6 +97,11 @@ function MonthCard({ m }: { m: Month }) {
           </div>
         </>
       )}
+      {m.food + m.nonFood > 0 && (
+        <p className="mt-2 text-sm text-muted">
+          Mad <span className="tabular-nums">{kr(m.food)}</span> · Non-food <span className="tabular-nums">{kr(m.nonFood)}</span>
+        </p>
+      )}
       {m.categories.length > 0 && (
         <details className="mt-3">
           <summary className="cursor-pointer text-sm text-muted">Per afdeling</summary>

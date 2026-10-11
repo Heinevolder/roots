@@ -49,7 +49,7 @@ Regler:
 - Tag ikke subtotal, total, moms, betaling, byttepenge eller kortoplysninger med som linjer.
 - item er et kort dansk varenavn med små bogstaver, som man ville skrive det på en indkøbsseddel: "gulerødder", "mælk", "toiletpapir". Ingen mærker, vægt eller "øko".
 - Er varen en af de købte varer nedenfor, så brug præcis det navn. Ellers brug et navn fra varekataloget, hvis det passer, og ellers dit eget korte navn.
-- category er afdelingen. Ting, der ikke er mad og ikke passer i en afdeling, får "Andet".
+- category er afdelingen. Non-food får en non-food-kategori: rengøring, papir, poser og køkkenting "Husholdning"; hygiejne, kosmetik og medicin "Personlig pleje"; bleer og vådservietter "Baby"; dyrefoder "Kæledyr"; tøj, blomster, legetøj, elektronik, bøger og alt andet ikke-mad "Bolig & fritid". "Andet" bruges kun til rabat på hele bonen.
 - sure = false, hvis linjen er svær at læse, eller du ikke er sikker på, hvilken vare det er.
 - Er billedet ikke en kvittering, så sæt is_receipt = false.
 

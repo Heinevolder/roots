@@ -9,9 +9,12 @@ import { addDays, today } from "./dates";
 
 const { trips, receiptLines, receiptAliases, purchaseLog } = schema;
 
-/** Departments a receipt line can land in: the store's aisles, then "Andet" for the rest. */
+/** Non-food departments. "Husholdning" is also an aisle in the catalogue; the others only exist on receipts. */
+export const NON_FOOD = ["Husholdning", "Personlig pleje", "Baby", "Kæledyr", "Bolig & fritid"];
+
+/** Departments a receipt line can land in: the store's aisles, the non-food ones, then "Andet". */
 export function receiptCategories(): string[] {
-  return [...getCatalogue().categories.map((c) => c.name), OTHER];
+  return [...new Set([...getCatalogue().categories.map((c) => c.name), ...NON_FOOD, OTHER])];
 }
 
 const aliasKey = (text: string) => normalizeName(text).replace(/[^\p{L}\p{N} ]/gu, "");
@@ -118,6 +121,8 @@ export type Month = {
   total: number;
   fromList: number;
   extra: number;
+  food: number;
+  nonFood: number;
   trips: number;
   missing: number; // trips without a receipt
   categories: { name: string; amount: number }[];
@@ -134,7 +139,7 @@ export function monthlySpend(months = 12): Month[] {
   const byMonth = new Map<string, Month & { cats: Map<string, number> }>();
   const get = (m: string) => {
     let v = byMonth.get(m);
-    if (!v) byMonth.set(m, (v = { month: m, total: 0, fromList: 0, extra: 0, trips: 0, missing: 0, categories: [], cats: new Map() }));
+    if (!v) byMonth.set(m, (v = { month: m, total: 0, fromList: 0, extra: 0, food: 0, nonFood: 0, trips: 0, missing: 0, categories: [], cats: new Map() }));
     return v;
   };
   for (const t of ts) {
@@ -147,6 +152,9 @@ export function monthlySpend(months = 12): Month[] {
     const m = get(monthOf.get(l.tripId)!);
     if (l.onList) m.fromList += l.price;
     else m.extra += l.price;
+    // "Andet" (whole-receipt discounts, the difference line) counts as neither.
+    if (NON_FOOD.includes(l.category)) m.nonFood += l.price;
+    else if (l.category !== OTHER) m.food += l.price;
     m.cats.set(l.category, (m.cats.get(l.category) ?? 0) + l.price);
   }
   return [...byMonth.values()]
