@@ -4,6 +4,7 @@ import { getCatalogueIndex } from "@/lib/catalogue";
 import { listRecipes } from "@/lib/recipes";
 import { getPlanRange } from "@/lib/plan-range";
 import { currentDevice } from "@/lib/push";
+import { itemPrices } from "@/lib/receipts";
 
 export async function GET(req: Request) {
   await connection();
@@ -16,6 +17,7 @@ export async function GET(req: Request) {
       catalogue: getCatalogueIndex(),
       staples: listStaples(),
       range: getPlanRange(),
+      prices: itemPrices(),
       recipes: Object.fromEntries(listRecipes().map((r) => [r.slug, r.title])),
     },
     { headers: { "Cache-Control": "no-store" } },

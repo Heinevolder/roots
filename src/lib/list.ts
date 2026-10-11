@@ -12,7 +12,7 @@ import { today } from "./dates";
 import { getPlanRange } from "./plan-range";
 import type { ListItem } from "./db/schema";
 
-const { listItems, mealPlan, staples, purchaseLog, cookedLog } = schema;
+const { listItems, mealPlan, staples, purchaseLog, cookedLog, trips } = schema;
 
 /** Row shape on the wire (and in the client's IndexedDB). */
 export type WireItem = Omit<ListItem, "rev"> & { rev?: number };
@@ -153,16 +153,17 @@ export function applyClientRows(rows: WireItem[], device: string | null = null):
   return applied;
 }
 
-/** "Færdig med at handle": log and clear ticked items, keep the rest. */
-export function finishShopping() {
+/** "Færdig med at handle": log ticked items as a trip and clear them, keep the rest. Returns the trip id. */
+export function finishShopping(): number {
   const now = Date.now();
   const date = today();
-  db.transaction((tx) => {
+  const tripId = db.transaction((tx) => {
     const rev = nextRev();
+    const tripId = tx.insert(trips).values({ date, createdAt: now }).returning({ id: trips.id }).get().id;
     const live = tx.select().from(listItems).where(eq(listItems.deleted, false)).all();
     for (const row of live) {
       if (row.checked) {
-        tx.insert(purchaseLog).values({ item: row.item, date }).run();
+        tx.insert(purchaseLog).values({ item: row.item, date, tripId }).run();
         tx.update(listItems).set({ deleted: true, updatedAt: now, rev }).where(eq(listItems.id, row.id)).run();
       } else if (row.dismissed) {
         tx.update(listItems).set({ deleted: true, updatedAt: now, rev }).where(eq(listItems.id, row.id)).run();
@@ -175,8 +176,10 @@ export function finishShopping() {
       tx.update(mealPlan).set({ shoppedAt: now }).where(eq(mealPlan.date, d.date)).run();
       if (d.recipeSlug) tx.insert(cookedLog).values({ recipeSlug: d.recipeSlug, date: d.date }).run();
     }
+    return tripId;
   });
   notifyList(currentRev());
+  return tripId;
 }
 
 export function listStaples() {

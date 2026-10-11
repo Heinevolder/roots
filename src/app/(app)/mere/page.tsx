@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { connection } from "next/server";
 import { listStaples } from "@/lib/list";
 import { getCatalogue } from "@/lib/catalogue";
@@ -18,6 +19,14 @@ export default async function MorePage() {
   return (
     <>
       <PageHeader title="Mere" />
+
+      <Link href="/udgifter" className="card mb-8 flex items-center justify-between px-4 py-3">
+        <span>
+          <span className="block font-medium">Udgifter</span>
+          <span className="text-sm text-muted">Kvitteringer og forbrug per måned</span>
+        </span>
+        <span className="text-muted">→</span>
+      </Link>
 
       <Notifications publicKey={vapidPublicKey()} />
 

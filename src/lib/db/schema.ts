@@ -38,7 +38,45 @@ export const purchaseLog = sqliteTable("purchase_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   item: text("item").notNull(),
   date: text("date").notNull(),
+  tripId: integer("trip_id"),
 });
+
+/** One shopping trip: created by "Færdig med at handle", or by a receipt that has no trip to join. */
+export const trips = sqliteTable("trips", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull(), // YYYY-MM-DD
+  store: text("store"),
+  total: real("total"), // kr from the receipt; null until a receipt is added
+  createdAt: integer("created_at").notNull(),
+});
+
+/** Receipt lines, each folded together with its discount/pant. `onList` = it was on the shopping list. */
+export const receiptLines = sqliteTable(
+  "receipt_lines",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    tripId: integer("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    text: text("text").notNull(), // as printed, e.g. "ØKO GULERØD 1KG"
+    price: real("price").notNull(), // kr paid for the line
+    item: text("item").notNull(), // short Danish name, catalogue name when there is one
+    category: text("category").notNull(),
+    onList: integer("on_list", { mode: "boolean" }).notNull().default(false),
+    sure: integer("sure", { mode: "boolean" }).notNull().default(true),
+  },
+  (t) => [index("receipt_lines_trip").on(t.tripId), index("receipt_lines_item").on(t.item)],
+);
+
+/** Learned receipt text -> item, so the same product is matched the same way next time. */
+export const receiptAliases = sqliteTable("receipt_aliases", {
+  text: text("text").primaryKey(), // normalized receipt text
+  item: text("item").notNull(),
+  category: text("category").notNull(),
+});
+
+export type Trip = typeof trips.$inferSelect;
+export type ReceiptLine = typeof receiptLines.$inferSelect;
 
 export const cookedLog = sqliteTable("cooked_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),

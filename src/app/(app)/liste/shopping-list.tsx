@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ldb, newId, type Row, type StapleRow } from "@/lib/client/store";
 import { finishShoppingRemote, mutate, mutateMany, startLiveSync, type Status } from "@/lib/client/sync";
 import { canonical, categoryName, categoryOf, type CatalogueIndex } from "@/lib/catalogue-core";
 import { formatAmount, parseIngredientLine } from "@/lib/ingredients";
 import { rangeLabel } from "@/lib/dates";
+import { kr } from "@/lib/money";
 import { placeItem } from "../mere/actions";
 import { pull } from "@/lib/client/sync";
 
@@ -21,8 +23,10 @@ export function ShoppingList() {
   const titles = useLiveQuery(async () => ((await ldb.meta.get("recipes"))?.value as Record<string, string> | undefined) ?? {}, []);
   const pending = useLiveQuery(() => ldb.outbox.count(), []) ?? 0;
   const range = useLiveQuery(async () => (await ldb.meta.get("range"))?.value as { start: string; end: string } | undefined, []);
+  const prices = useLiveQuery(async () => ((await ldb.meta.get("prices"))?.value as Record<string, number> | undefined) ?? {}, []);
 
   const [moving, setMoving] = useState<Row | null>(null);
+  const [finishedTrip, setFinishedTrip] = useState<number | null>(null);
 
   useEffect(() => startLiveSync(setStatus), []);
 
@@ -34,6 +38,8 @@ export function ShoppingList() {
   const open = visible.filter((r) => !r.checked);
   const inCart = visible.filter((r) => r.checked).sort((a, b) => (b.checkedAt ?? 0) - (a.checkedAt ?? 0));
   const groups = groupByCategory(open, idx);
+  const priced = visible.filter((r) => prices?.[r.item] != null);
+  const estimate = priced.reduce((s, r) => s + prices![r.item], 0);
 
   return (
     <>
@@ -45,10 +51,25 @@ export function ShoppingList() {
             {!rows ? "Henter…" : open.length ? `${open.length} tilbage` : inCart.length ? "Alt er i kurven" : "Tom liste"}
             {inCart.length > 0 && ` · ${inCart.length} i kurven`}
           </p>
+          {priced.length > 0 && (
+            <p className="mt-0.5 text-sm text-muted" title="Ud fra hvad varerne har kostet på jeres kvitteringer">
+              Ca. {kr(estimate)}
+              {priced.length < visible.length && ` (pris kendt for ${priced.length} af ${visible.length})`}
+            </p>
+          )}
         </div>
         <StatusPill status={status} pending={pending} />
       </header>
       <ConnectionNote status={status} pending={pending} />
+      {finishedTrip != null && (
+        <div className="card mb-4 flex items-center justify-between gap-3 px-4 py-3">
+          <Link href={`/udgifter/${finishedTrip}`} className="flex-1">
+            <span className="block font-medium">Har du kvitteringen?</span>
+            <span className="text-sm text-muted">Tag et billede, så kan I se, hvad I bruger →</span>
+          </Link>
+          <button className="size-9 text-muted" aria-label="Luk" onClick={() => setFinishedTrip(null)}>×</button>
+        </div>
+      )}
 
       <div className="mb-4 flex rounded-xl border border-line bg-surface p-0.5 text-sm">
         <TabButton active={tab === "handl"} onClick={() => setTab("handl")}>Handl</TabButton>
@@ -87,7 +108,7 @@ export function ShoppingList() {
                   <ItemRow key={r.id} row={r} titles={titles ?? {}} />
                 ))}
               </ul>
-              <FinishButton count={inCart.length} offline={status === "offline" || status === "weak"} />
+              <FinishButton count={inCart.length} offline={status === "offline" || status === "weak"} onFinished={setFinishedTrip} />
             </section>
           )}
           {visible.length > 0 && <EmptyButton rows={visible} />}
@@ -257,7 +278,7 @@ function Review({ rows, idx }: { rows: Row[]; idx: CatalogueIndex }) {
   );
 }
 
-function FinishButton({ count, offline }: { count: number; offline: boolean }) {
+function FinishButton({ count, offline, onFinished }: { count: number; offline: boolean; onFinished: (tripId: number) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -269,9 +290,10 @@ function FinishButton({ count, offline }: { count: number; offline: boolean }) {
           if (!confirm(`Færdig med at handle? ${count} varer i kurven ryddes af listen.`)) return;
           setBusy(true);
           setError(null);
-          const ok = await finishShoppingRemote();
+          const tripId = await finishShoppingRemote();
           setBusy(false);
-          if (!ok) setError("Kunne ikke nå serveren. Prøv igen, når der er forbindelse.");
+          if (tripId == null) setError("Kunne ikke nå serveren. Prøv igen, når der er forbindelse.");
+          else onFinished(tripId);
         }}
       >
         {busy ? "Rydder…" : "Færdig med at handle"}

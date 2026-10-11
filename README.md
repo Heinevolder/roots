@@ -25,7 +25,7 @@ data/
   recipes/*.md   one file per recipe (YAML frontmatter + steps), slug = file name
   images/        recipe photos
   items.yaml     grocery catalogue + aisles in walking order (also editable under "Mere")
-  roots.db       SQLite: meal_plan, list_items, staples, purchase_log, cooked_log
+  roots.db       SQLite: meal_plan, list_items, staples, purchase_log, cooked_log, trips, receipt_lines, receipt_aliases
 ```
 
 Recipes and `items.yaml` can be edited by hand; changes are picked up automatically.
@@ -36,6 +36,7 @@ Recipes and `items.yaml` can be edited by hand; changes are picked up automatica
 - **Har vi allerede?** hides recipe items you already have at home.
 - **Færdig med at handle** logs and clears ticked items, keeps the rest, and marks the planned days as shopped.
 - **Notifications** (Mere → Notifikationer, per device): when someone adds to the list, the other devices get a Web Push. Additions from one device are pooled and sent 2 min after the last one (max 10 min), skipping anything ticked off in the meantime. VAPID keys are generated on first use and kept in the `settings` table, so there is nothing to configure. iPhone needs Roots on the Home Screen (iOS 16.4+). Plan regeneration does not notify; "Læg på indkøbslisten" from a recipe does.
+- **Udgifter** (Mere → Udgifter): "Færdig med at handle" makes a trip and offers to add the receipt. Claude reads the photo into lines (discounts and pant folded in), matching them to what was ticked off on that trip; lines that weren't on the list count as "Ekstra". Corrections are remembered per receipt text in `receipt_aliases`. The month view shows the total, list vs. extra, and spend per aisle. The list shows a rough "Ca. X kr" from the median of each item's last 5 receipt prices.
 - Every tick writes to IndexedDB first and goes to the server via an outbox; the other phone gets it over SSE. Conflicts: last write wins per item.
 
 ## Deploy with Coolify

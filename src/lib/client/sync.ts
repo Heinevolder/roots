@@ -87,7 +87,7 @@ export function pull(): Promise<void> {
         const res = await request(`/api/list?since=${since}`, { cache: "no-store" });
         if (res.status === 401) return redirectToLogin();
         if (!res.ok) return;
-        const data = (await res.json()) as { rows: Row[]; rev: number; catalogue: CatalogueIndex; staples: StapleRow[]; recipes: Record<string, string>; range: { start: string; end: string } };
+        const data = (await res.json()) as { rows: Row[]; rev: number; catalogue: CatalogueIndex; staples: StapleRow[]; recipes: Record<string, string>; range: { start: string; end: string }; prices: Record<string, number> };
         await ldb.transaction("rw", ldb.rows, ldb.outbox, ldb.meta, async () => {
           const pending = new Set((await ldb.outbox.toArray()).map((o) => o.id));
           for (const r of data.rows) {
@@ -104,6 +104,7 @@ export function pull(): Promise<void> {
           await ldb.meta.put({ key: "staples", value: data.staples });
           await ldb.meta.put({ key: "recipes", value: data.recipes });
           await ldb.meta.put({ key: "range", value: data.range });
+          await ldb.meta.put({ key: "prices", value: data.prices ?? {} });
           await ldb.meta.put({ key: "syncedAt", value: Date.now() });
         });
       } while (pullAgain);
@@ -224,15 +225,17 @@ export function startLiveSync(onStatus: (s: Status) => void): () => void {
   };
 }
 
-export async function finishShoppingRemote(): Promise<boolean> {
+/** Returns the new trip's id (for adding its receipt), or null if the server couldn't be reached. */
+export async function finishShoppingRemote(): Promise<number | null> {
   await push();
-  if ((await ldb.outbox.count()) > 0) return false;
+  if ((await ldb.outbox.count()) > 0) return null;
   try {
     const res = await request("/api/list/finish", { method: "POST" });
-    if (!res.ok) return false;
+    if (!res.ok) return null;
+    const { tripId } = (await res.json()) as { tripId: number };
     await pull();
-    return true;
+    return tripId;
   } catch {
-    return false;
+    return null;
   }
 }
