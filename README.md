@@ -81,7 +81,7 @@ To move existing data in: copy `data/` into the `/data` volume once (e.g. `docke
 
 Needs `ANTHROPIC_API_KEY` in `.env` (server) / `.env.local` (dev). Model: `claude-opus-5-5`, called only from route handlers.
 
-- **Inspiration** (`/inspiration`): Claude uses web search to find recipe pages on Danish sites; the server fetches every URL and drops anything that doesn't load or isn't a single recipe, so cards are always real pages. Swipe right = Claude reads that page and saves it as a Markdown recipe (photo downloaded). Swiped URLs are never suggested again.
+- **Inspiration** (`/inspiration`): Claude Haiku 5.5 runs three web searches in parallel (Danish, English and other European sites); as each finishes, the server fetches every URL and drops anything that doesn't load or isn't a single recipe, so cards are always real pages, and the deck shows them as they arrive. Cards show only the photo and name (tap to flip for the page's ingredients). Swipe right = Claude reads that page and saves it as a Markdown recipe (photo downloaded). Swiped URLs are never suggested again.
 - **Import** (`/opskrifter/ny`): from a link (JSON-LD when the site has it, otherwise page text) or 1–4 photos (cookbook, handwritten). Produces a draft you review before saving.
 - Ingredients are normalised to names in `items.yaml`, so they merge on the shopping list.
 - Rough cost: a search is a few web searches plus one Opus call; an import is one call. Set a monthly spend limit in the Anthropic console.

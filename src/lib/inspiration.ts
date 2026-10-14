@@ -4,7 +4,7 @@ import { db, schema } from "./db";
 import { listRecipes, saveRecipe, slugify, uniqueSlug } from "./recipes";
 import { fetchPage, type Page } from "./ai/fetch-page";
 import { extractFromPage } from "./ai/extract";
-import { searchRecipes } from "./ai/search";
+import { searchRecipes, type Scope } from "./ai/search";
 import { storeRemoteImage } from "./ai/images";
 import { AiError } from "./ai/claude";
 import { regenerateList } from "./list";
@@ -14,7 +14,6 @@ const { inspiration } = schema;
 export type Card = {
   id: number;
   title: string;
-  pitch: string | null;
   imageUrl: string | null;
   site: string | null;
   time: number | null;
@@ -25,7 +24,6 @@ export type Card = {
 const toCard = (r: schema.Inspiration): Card => ({
   id: r.id,
   title: r.title,
-  pitch: r.pitch,
   imageUrl: r.imageUrl,
   site: r.site,
   time: r.time,
@@ -64,10 +62,13 @@ const canon = (u: string) => {
   }
 };
 
+const INGREDIENTS = /ingrediens|ingredient|zutaten|ingrédients|ingredienti|ingredientes/i;
+const METHOD = /fremgangsmåde|sådan gør du|tilberedning|instructions|directions|method|gör så här|instruktioner|fremgangsmåte|preparazione|procedimento|préparation|zubereitung|preparación/i;
+
 /** Looks like a single recipe, not a list or article. */
 function isRecipePage(p: Page): boolean {
   if (p.recipe?.ingredients.length) return true;
-  return /ingrediens/i.test(p.text) && /(fremgangsmåde|sådan gør du|tilberedning)/i.test(p.text);
+  return INGREDIENTS.test(p.text) && METHOD.test(p.text);
 }
 
 const g = globalThis as unknown as { __rootsRefill?: Promise<number> | null };
@@ -80,41 +81,58 @@ export function refillDeck(wish: string): Promise<number> {
   return g.__rootsRefill;
 }
 
+/** Danish, English and other European sites are searched side by side; each lands in the deck as soon as it is checked. */
+const SCOPES: { scope: Scope; count: number }[] = [
+  { scope: "dk", count: 10 },
+  { scope: "en", count: 8 },
+  { scope: "eu", count: 6 },
+];
+
 async function doRefill(wish: string): Promise<number> {
   const library = listRecipes();
   const known = db.select({ url: inspiration.url }).from(inspiration).all().map((r) => r.url);
   const seen = new Set([...known, ...library.flatMap((r) => (r.source ? [r.source] : []))].map(canon));
+  const batchAt = Date.now(); // one timestamp per search, so cards keep their order as they arrive
 
-  const candidates = await searchRecipes(wish, { count: 8, avoidTitles: library.map((r) => r.title), avoidUrls: known });
-  const fresh = candidates.filter((c, i, all) => !seen.has(canon(c.url)) && all.findIndex((x) => canon(x.url) === canon(c.url)) === i);
-
-  const pages = await Promise.allSettled(fresh.map((c) => fetchPage(c.url)));
-  const batchAt = Date.now();
-  let added = 0;
-  pages.forEach((p, i) => {
-    if (p.status !== "fulfilled" || !isRecipePage(p.value)) return; // dead or made-up link, or not a recipe
-    const page = p.value;
-    const c = fresh[i];
-    if (seen.has(canon(page.url))) return;
-    seen.add(canon(page.url));
-    const r = page.recipe;
-    db.insert(inspiration)
-      .values({
-        url: page.url,
-        title: r?.name || c.title,
-        pitch: c.pitch,
-        imageUrl: r?.image ?? page.image ?? null,
-        site: new URL(page.url).hostname.replace(/^www\./, ""),
-        time: r?.time ?? null,
-        ingredients: r?.ingredients.length ? JSON.stringify(r.ingredients.slice(0, 30)) : null,
-        query: wish || null,
-        createdAt: batchAt,
-      })
-      .onConflictDoNothing()
-      .run();
-    added++;
-  });
-  if (!added) throw new AiError("Fandt ingen nye opskrifter, der kunne åbnes. Prøv igen eller med et andet ønske.");
+  const counts = await Promise.allSettled(
+    SCOPES.map(async ({ scope, count }) => {
+      const candidates = await searchRecipes(wish, { scope, count, avoidTitles: library.map((r) => r.title), avoidUrls: known });
+      const fresh = candidates.filter((c) => !seen.has(canon(c.url)));
+      const pages = await Promise.allSettled(fresh.map((c) => fetchPage(c.url)));
+      let added = 0;
+      pages.forEach((p, i) => {
+        if (p.status !== "fulfilled" || !isRecipePage(p.value)) return; // dead or made-up link, or not a recipe
+        const page = p.value;
+        const c = fresh[i];
+        if (seen.has(canon(c.url)) || seen.has(canon(page.url))) return;
+        seen.add(canon(c.url));
+        seen.add(canon(page.url));
+        const r = page.recipe;
+        db.insert(inspiration)
+          .values({
+            url: page.url,
+            // Foreign pages keep Claude's Danish name; Danish pages use their own.
+            title: (scope === "dk" && r?.name) || c.title,
+            imageUrl: r?.image ?? page.image ?? null,
+            site: new URL(page.url).hostname.replace(/^www\./, ""),
+            time: r?.time ?? null,
+            ingredients: r?.ingredients.length ? JSON.stringify(r.ingredients.slice(0, 30)) : null,
+            query: wish || null,
+            createdAt: batchAt,
+          })
+          .onConflictDoNothing()
+          .run();
+        added++;
+      });
+      return added;
+    }),
+  );
+  const added = counts.reduce((n, c) => n + (c.status === "fulfilled" ? c.value : 0), 0);
+  if (!added) {
+    const failed = counts.find((c) => c.status === "rejected");
+    if (failed?.status === "rejected" && counts.every((c) => c.status === "rejected")) throw failed.reason;
+    throw new AiError("Fandt ingen nye opskrifter, der kunne åbnes. Prøv igen eller med et andet ønske.");
+  }
   return added;
 }
 

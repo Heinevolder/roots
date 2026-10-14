@@ -17,11 +17,13 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
   const [error, setError] = useState<string | null>(null);
   const autoRefilled = useRef(false);
   const lastWish = useRef("");
+  const gone = useRef(new Set<number>()); // swiped here, so a poll that races the swipe can't bring it back
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/inspiration", { cache: "no-store" }).catch(() => null);
     if (!res?.ok) return;
     const data = (await res.json()) as { cards: Card[]; saved: Saved[] };
+    data.cards = data.cards.filter((c) => !gone.current.has(c.id));
     setSaved(data.saved);
     return data;
   }, []);
@@ -31,6 +33,16 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
     if (!background) setForeground(w || "Gode hverdagsretter");
     setSearching(true);
     setError(null);
+    // Cards land as each site group is checked; show them as soon as the first ones are in.
+    const before = new Set((await refresh())?.cards.map((c) => c.id));
+    // A search you asked for goes on top; a background top-up goes under the cards you are looking at.
+    const apply = (next: Card[]) => setCards((prev) => (background ? appendNew(prev, next) : next));
+    const poll = setInterval(async () => {
+      const data = await refresh();
+      if (!data) return;
+      apply(data.cards);
+      if (data.cards.some((c) => !before.has(c.id))) setForeground(null);
+    }, 2500);
     try {
       const res = await fetch("/api/inspiration/search", {
         method: "POST",
@@ -39,14 +51,15 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
       });
       const data = await res.json().catch(() => ({ error: `Uventet svar fra serveren (${res.status}).` }));
       if (!res.ok) throw new Error(data.error);
-      setCards(data.cards);
+      apply((data.cards as Card[]).filter((c) => !gone.current.has(c.id)));
     } catch (e) {
       setError(e instanceof Error && e.message !== "Failed to fetch" ? e.message : "Ingen forbindelse til serveren.");
     } finally {
+      clearInterval(poll);
       setSearching(false);
       setForeground(null);
     }
-  }, []);
+  }, [refresh]);
 
   // While something is being saved, poll until it lands.
   const anySaving = saved.some((s) => s.status === "saving");
@@ -57,6 +70,7 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
   }, [anySaving, refresh]);
 
   async function decide(card: Card, action: "save" | "skip") {
+    gone.current.add(card.id);
     setCards((c) => c.filter((x) => x.id !== card.id));
     if (action === "save") setSaved((s) => [{ id: card.id, title: card.title, status: "saving", recipeSlug: null }, ...s].slice(0, 6));
     // Keep the deck topped up once per visit when it runs low.
@@ -75,6 +89,7 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
 
   async function retry(id: number) {
     await fetch(`/api/inspiration/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "retry" }) });
+    gone.current.delete(id);
     const data = await refresh();
     if (data) setCards(data.cards);
   }
@@ -85,7 +100,7 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
     <>
       <header className="mb-4">
         <h1 className="font-display text-3xl font-semibold tracking-tight">Inspiration</h1>
-        <p className="mt-0.5 text-sm text-muted">Rigtige opskrifter fra danske madsider. Højre gemmer, venstre springer over.</p>
+        <p className="mt-0.5 text-sm text-muted">Rigtige opskrifter fra danske og udenlandske madsider. Højre gemmer, venstre springer over.</p>
       </header>
 
       {!aiReady && <p className="card mb-4 p-4 text-sm text-warm">ANTHROPIC_API_KEY mangler på serveren, så der kan ikke søges.</p>}
@@ -98,13 +113,13 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
         }}
       >
         <input value={wish} onChange={(e) => setWish(e.target.value)} placeholder="Hvad har I lyst til?" className="field" enterKeyHint="search" />
-        <button className="btn-primary px-4" disabled={!!foreground || !aiReady}>Find</button>
+        <button className="btn-primary px-4" disabled={searching || !aiReady}>Find</button>
       </form>
       <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1">
         {CHIPS.map((c) => (
           <button
             key={c}
-            disabled={!!foreground || !aiReady}
+            disabled={searching || !aiReady}
             onClick={() => {
               setWish(c);
               void search(c);
@@ -191,6 +206,14 @@ export function Deck({ initialCards, initialSaved, aiReady }: { initialCards: Ca
       )}
     </>
   );
+}
+
+/** Keep the current order and add whatever is new at the end. */
+function appendNew(prev: Card[], next: Card[]): Card[] {
+  const ids = new Set(next.map((c) => c.id));
+  const kept = prev.filter((c) => ids.has(c.id));
+  const have = new Set(kept.map((c) => c.id));
+  return [...kept, ...next.filter((c) => !have.has(c.id))];
 }
 
 function SwipeCard({ card, onDecide }: { card: Card; onDecide: (a: "save" | "skip") => void }) {
@@ -288,10 +311,7 @@ function CardFace({ card, flipped = false }: { card: Card; flipped?: boolean }) 
             ))}
           </ul>
         ) : (
-          <div className="flex-1 text-sm">
-            {card.pitch && <p className="mb-2">{card.pitch}</p>}
-            <p className="text-muted">Ingredienslisten vises, når opskriften er gemt, eller på siden.</p>
-          </div>
+          <p className="flex-1 text-sm text-muted">Ingredienslisten vises, når opskriften er gemt, eller på siden.</p>
         )}
         <a
           href={card.url}
@@ -312,11 +332,8 @@ function CardFace({ card, flipped = false }: { card: Card; flipped?: boolean }) 
       ) : (
         <div className="absolute inset-0 grid place-items-center bg-accent-soft font-display text-7xl text-accent">{card.title[0]}</div>
       )}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-5 pt-20 text-white">
-        <p className="text-xs tracking-wide uppercase opacity-80">{[card.site, card.time && `${card.time} min`].filter(Boolean).join(" · ")}</p>
-        <p className="mt-1 font-display text-2xl leading-tight font-semibold">{card.title}</p>
-        {card.pitch && <p className="mt-1.5 text-sm leading-snug opacity-90">{card.pitch}</p>}
-        <p className="mt-3 text-xs opacity-70">Tryk for ingredienser</p>
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 pt-16 text-white">
+        <p className="font-display text-2xl leading-tight font-semibold">{card.title}</p>
       </div>
     </div>
   );
@@ -338,7 +355,7 @@ function RoundButton({ label, onClick, big = false, children }: { label: string;
   );
 }
 
-const STEPS = ["Søger på danske madsider…", "Læser søgeresultaterne…", "Vælger varierede retter…", "Tjekker at opskrifterne findes…", "Henter billeder…"];
+const STEPS = ["Søger på danske madsider…", "Søger på engelske og europæiske sider…", "Tjekker at opskrifterne findes…", "Henter billeder…"];
 
 function SearchingCard({ wish }: { wish: string }) {
   const [step, setStep] = useState(0);
@@ -348,8 +365,8 @@ function SearchingCard({ wish }: { wish: string }) {
     return () => clearInterval(t);
   }, []);
   useEffect(() => {
-    // Rough pacing of a ~60 s search; stays on the last step until done.
-    const t = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 11000);
+    // Rough pacing until the first cards land; stays on the last step until then.
+    const t = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 5000);
     return () => clearInterval(t);
   }, []);
   return (
@@ -371,9 +388,9 @@ function SearchingCard({ wish }: { wish: string }) {
       <div className="w-full max-w-60">
         <p className="mb-2 min-h-5 text-sm" key={step}>{STEPS[step]}</p>
         <div className="h-1.5 overflow-hidden rounded-full bg-line">
-          <div className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-out" style={{ width: `${Math.min(95, (secs / 70) * 100)}%` }} />
+          <div className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-out" style={{ width: `${Math.min(95, (secs / 25) * 100)}%` }} />
         </div>
-        <p className="mt-2 text-xs text-muted">Tager typisk under et minut</p>
+        <p className="mt-2 text-xs text-muted">De første kort kommer om lidt</p>
       </div>
     </div>
   );

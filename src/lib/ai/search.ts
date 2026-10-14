@@ -1,8 +1,20 @@
 import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
-import { claude, AiError, FALLBACK, MODEL } from "./claude";
+import { claude, AiError } from "./claude";
 
-export type Candidate = { title: string; url: string; pitch: string };
+/** Finding links is simple work: the cheap, fast model does it, and every link is checked afterwards anyway. */
+const SEARCH_MODEL = "claude-haiku-5-5";
+
+export type Candidate = { title: string; url: string };
+
+/** Each scope is searched by its own call, all at the same time. */
+export type Scope = "dk" | "en" | "eu";
+
+const SITES: Record<Scope, string> = {
+  dk: "danske opskriftssider, fx valdemarsro.dk, arla.dk, madensverden.dk, dk-kogebogen.dk, mummum.dk, louiseogmadeleine.dk, spisbedre.dk, alt.dk/mad, dr.dk/mad, coop.dk/opskrifter, madbanditten.dk og lignende",
+  en: "engelsksprogede opskriftssider, fx bbcgoodfood.com, recipetineats.com, seriouseats.com, bonappetit.com, jamieoliver.com, allrecipes.com, simplyrecipes.com, budgetbytes.com og lignende (undgå sider bag betalingsmur som NYT Cooking)",
+  eu: "europæiske opskriftssider på andre sprog end dansk og engelsk, fx ica.se, koket.se, matprat.no, tine.no, giallozafferano.it, marmiton.org, chefkoch.de, lecker.de og lignende",
+};
 
 const SUGGEST_TOOL: Anthropic.Beta.BetaTool = {
   name: "suggest_recipes",
@@ -18,11 +30,10 @@ const SUGGEST_TOOL: Anthropic.Beta.BetaTool = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "url", "pitch"],
+          required: ["title", "url"],
           properties: {
-            title: { type: "string" },
+            title: { type: "string", description: "Rettens navn på dansk" },
             url: { type: "string", description: "Den præcise URL til opskriftssiden, som du har set i søgeresultaterne" },
-            pitch: { type: "string", description: "Én kort, appetitlig sætning på dansk om retten" },
           },
         },
       },
@@ -30,18 +41,18 @@ const SUGGEST_TOOL: Anthropic.Beta.BetaTool = {
   },
 };
 
-const SYSTEM = `Du hjælper en dansk familie på 4 (to voksne, to børn) med at finde inspiration til aftensmad.
+const system = (scope: Scope) => `Du hjælper en dansk familie på 4 (to voksne, to børn) med at finde inspiration til aftensmad.
 
-Find rigtige opskrifter på danske opskriftssider med web search, fx valdemarsro.dk, arla.dk, madensverden.dk, dk-kogebogen.dk, mummum.dk, louiseogmadeleine.dk, spisbedre.dk, alt.dk/mad, dr.dk/mad, coop.dk/opskrifter, madbanditten.dk og lignende.
+Find rigtige opskrifter med web search på ${SITES[scope]}.
 
 Regler:
-- Foreslå kun opskrifter, du har set som et konkret søgeresultat, og brug den præcise URL fra resultatet. Opfind aldrig opskrifter eller URL'er, og skriv ikke selv opskrifter.
+- Foreslå kun opskrifter, du har set som et konkret søgeresultat, og brug den præcise URL fra resultatet. Opfind aldrig opskrifter eller URL'er.
 - URL'en skal pege på én enkelt opskrift, ikke en oversigt, kategori eller artikel med mange opskrifter.
-- Variér: højst 2 opskrifter fra samme side, og ikke to af samme slags ret (fx to tacoretter). Bland protein, køkken og tilberedning.
+- Variér: højst 2 opskrifter fra samme side, og ikke to af samme slags ret. Bland protein, køkken og tilberedning.
 - Undgå retter, familien allerede har.
 - Aflever resultatet ved at kalde suggest_recipes én gang.`;
 
-export async function searchRecipes(wish: string, opts: { count: number; avoidTitles: string[]; avoidUrls: string[] }): Promise<Candidate[]> {
+export async function searchRecipes(wish: string, opts: { scope: Scope; count: number; avoidTitles: string[]; avoidUrls: string[] }): Promise<Candidate[]> {
   const month = new Date().toLocaleDateString("da-DK", { month: "long", timeZone: "Europe/Copenhagen" });
   const user = [
     `Find ${opts.count} opskrifter.`,
@@ -54,17 +65,16 @@ export async function searchRecipes(wish: string, opts: { count: number; avoidTi
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: user }];
   const tools: Anthropic.Beta.BetaToolUnion[] = [
-    { type: "web_search_20260209", name: "web_search", max_uses: 6, user_location: { type: "approximate", country: "DK", timezone: "Europe/Copenhagen" } },
+    { type: "web_search_20250305", name: "web_search", max_uses: 4, ...(opts.scope === "dk" && { user_location: { type: "approximate" as const, country: "DK", timezone: "Europe/Copenhagen" } }) },
     SUGGEST_TOOL,
   ];
 
-  for (let turn = 0; turn < 5; turn++) {
+  for (let turn = 0; turn < 4; turn++) {
     const res = await claude().beta.messages.create({
-      model: MODEL,
+      model: SEARCH_MODEL,
       max_tokens: 16000,
-      ...FALLBACK,
-      output_config: { effort: "medium" },
-      system: SYSTEM,
+      output_config: { effort: "low" },
+      system: system(opts.scope),
       tools,
       messages,
     });
